@@ -3,14 +3,17 @@ import * as React from 'react';
 import './App.css';
 import logo from './logo.svg';
 import { joinChannel, Message, subscribeMessages } from './Twitch';
+import TsuComponent, { Tsu } from 'src/Tsu';
 
 type State = {
   messages: Message[];
+  tsus: Tsu[];
 };
 
-class App extends React.Component {
+export default class App extends React.Component {
   state: State = {
     messages: [],
+    tsus: [],
   };
   async componentWillMount() {
     await joinChannel('namse_');
@@ -23,6 +26,15 @@ class App extends React.Component {
         ],
       });
 
+      const isAlreadyJoinedTsu = this.state.tsus.some(tsu => tsu.username === message.username)
+      if (!isAlreadyJoinedTsu) {
+        const newTsu: Tsu = {
+          username: message.username,
+        };
+        this.setState({
+          tsus: [...this.state.tsus, newTsu],
+        });
+      }
     });
   }
   public render() {
@@ -30,6 +42,7 @@ class App extends React.Component {
     const messages = this.state.messages.map(message => (
       <div>{`${message.username}: ${message.text}`}</div>
     ));
+    const tsus = this.state.tsus.map(tsu => (<TsuComponent {...tsu} />))
     console.log(messages);
     return (
       <div className="App">
@@ -40,9 +53,10 @@ class App extends React.Component {
         <p className="App-intro">
           {messages}
         </p>
+        <p>
+          {tsus}
+        </p>
       </div>
     );
   }
 }
-
-export default App;
