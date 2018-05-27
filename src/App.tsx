@@ -10,40 +10,56 @@ type State = {
   gameState: GameState;
 
   // for game
-  leftCandidate?: string;
-  rightCandidate?: string;
+  leftCandidate: string;
+  rightCandidate: string;
 
   leftTsus: Tsu[],
   rightTsus: Tsu[],
   remainTsus: Tsu[],
 
   round: number;
+  roundOf: number;
 };
-let candidates = [
+
+const JAVCandidates = [
   '푸른 하늘',
   '두부집 효녀',
   '공장장',
   '국민여동생',
 ];
 
-let winners = [];
+let candidates: string[] = [];
+
+let winners: string[] = [];
 
 enum GameState {
   WaitingJoin,
   OnGame,
+  EndGame,
 };
 
-export default class App extends React.Component {
-  state: State = {
-    messages: [],
-    tsus: [],
-    gameState: GameState.WaitingJoin,
+function calculateRoundOf(number) {
+  return 2 ** Math.ceil(Math.log2(number));
+}
 
-    round: 1,
-    leftTsus: [],
-    rightTsus: [],
-    remainTsus: [],
-  };
+const defaultState = {
+  messages: [],
+  tsus: [],
+  gameState: GameState.WaitingJoin,
+
+  round: 1,
+  roundOf: calculateRoundOf(candidates.length),
+
+  leftCandidate: '',
+  rightCandidate: '',
+
+  leftTsus: [],
+  rightTsus: [],
+  remainTsus: [],
+}
+
+export default class App extends React.Component {
+  state: State = { ...defaultState };
   async componentWillMount() {
     await joinChannel('namse_');
     subscribeMessages(this.onMessage.bind(this));
@@ -129,9 +145,10 @@ export default class App extends React.Component {
     return candidate;
   }
 
-  chooseCandidate() {
+  startNextCandidate() {
     const leftCandidate = this.popCandidate();
     const rightCandidate = this.popCandidate();
+
     this.setState({
       leftCandidate,
       rightCandidate,
@@ -139,10 +156,53 @@ export default class App extends React.Component {
   }
 
   startGame = () => {
+    candidates = [...JAVCandidates];
     this.setState({
       gameState: GameState.OnGame,
     });
-    this.chooseCandidate();
+    this.startNextCandidate();
+  }
+
+  winCandidate(candidate: string) {
+    winners.push(candidate);
+
+    const isLeftCandidate = this.state.leftCandidate === candidate;
+    const winnerTsus = isLeftCandidate
+      ? this.state.leftTsus
+      : this.state.rightTsus;
+
+    this.setState({
+      remainTsus: [...winnerTsus],
+      leftTsus: [],
+      rightTsus: [],
+    });
+
+    if (candidates.length) {
+      this.startNextCandidate();
+      return;
+    }
+
+    if (winners.length === 1) {
+      // END GAME!
+      this.setState({
+        gameState: GameState.EndGame,
+      });
+      return;
+    }
+
+    candidates = winners;
+    winners = [];
+    const roundOf = calculateRoundOf(candidates.length);
+    this.setState({
+      roundOf,
+    });
+    this.startNextCandidate();
+  }
+
+  restartGame = () => {
+    this.setState({
+      ...defaultState
+    });
   }
 
   renderWaitingJoin() {
@@ -161,6 +221,10 @@ export default class App extends React.Component {
   }
 
   renderOnGame() {
+    const {
+      leftCandidate,
+      rightCandidate,
+    } = this.state;
     const leftTsuComponents = this.state.leftTsus.map(tsu => (<TsuComponent {...tsu} />));
     const rightTsusComponents = this.state.rightTsus.map(tsu => (<TsuComponent {...tsu} />));
     const remainTsuComponents = this.state.remainTsus.map(tsu => (<TsuComponent {...tsu} />));
@@ -171,14 +235,39 @@ export default class App extends React.Component {
         </header>
         <section className="container">
           <div className="left-candidate">
-            <h2>{this.state.leftCandidate}</h2>
+            <h2
+              onClick={this.winCandidate.bind(this, leftCandidate)}
+            >{leftCandidate}</h2>
             {leftTsuComponents}
           </div>
           <div className="right-candidate">
-            <h2>{this.state.rightCandidate}</h2>
+            <h2
+              onClick={this.winCandidate.bind(this, rightCandidate)}
+            >{rightCandidate}</h2>
             {rightTsusComponents}
           </div>
         </section>
+        <p>
+          {remainTsuComponents}
+        </p>
+      </div>
+    );
+  }
+
+  renderEndGame() {
+    const {
+      remainTsus,
+    } = this.state;
+    const winner = winners[0];
+    const remainTsuComponents = remainTsus.map(tsu => (<TsuComponent {...tsu} />));
+    return (
+      <div className="App">
+        <header className="App-header">
+          <h1 className="App-title">최종 승자는 {winner} !! </h1>
+          <h4>{remainTsuComponents.length}명의 트수가 성공했습니다!</h4>
+
+          <button onClick={this.restartGame}>다시 하기</button>
+        </header>
         <p>
           {remainTsuComponents}
         </p>
